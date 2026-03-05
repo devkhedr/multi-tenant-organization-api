@@ -1,12 +1,15 @@
 import uuid
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_admin
 from app.db.session import get_db
 from app.models import User, Membership
 from app.schemas.audit_log import AuditLogEntry, PaginatedAuditLogs
+from app.schemas.chatbot import ChatbotQuestion, ChatbotResponse
 from app.services.audit_log import AuditLogService
+from app.services.chatbot import ChatbotService
 
 router = APIRouter(tags=["audit-logs"])
 
@@ -40,3 +43,24 @@ async def get_audit_logs(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post("/organizations/{org_id}/audit-logs/ask")
+async def ask_chatbot(
+    org_id: uuid.UUID,
+    data: ChatbotQuestion,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    membership: Membership = Depends(require_admin),
+):
+    service = ChatbotService(db)
+
+    if data.stream:
+        async def generate():
+            async for chunk in service.ask_stream(org_id, data.question):
+                yield chunk
+
+        return StreamingResponse(generate(), media_type="text/plain")
+    else:
+        answer = await service.ask(org_id, data.question)
+        return ChatbotResponse(answer=answer)
