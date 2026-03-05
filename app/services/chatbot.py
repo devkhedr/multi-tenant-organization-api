@@ -42,7 +42,6 @@ class ChatbotService:
                 "details": log.details,
                 "created_at": log.created_at.isoformat(),
             })
-        print(logs)
         return logs
 
     def build_prompt(self, question: str, logs: list[dict]) -> str:
