@@ -29,9 +29,10 @@ COPY --from=builder /wheels /wheels
 RUN pip install --no-cache /wheels/*
 
 COPY --chown=appuser:appgroup . .
+RUN chmod +x entrypoint.sh
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./entrypoint.sh"]
