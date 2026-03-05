@@ -155,3 +155,35 @@ class OrganizationService:
             })
 
         return users, total
+
+    async def search_users(
+        self,
+        org_id: uuid.UUID,
+        query: str,
+    ) -> list[dict]:
+        # Use PostgreSQL full-text search with prefix matching
+        words = query.strip().split()
+        prefix_query = ' & '.join(f"{word}:*" for word in words)
+        search_query = func.to_tsquery('english', prefix_query)
+
+        result = await self.db.execute(
+            select(User, Membership, Role)
+            .join(Membership, User.id == Membership.user_id)
+            .join(Role, Membership.role_id == Role.id)
+            .where(
+                Membership.org_id == org_id,
+                User.search_vector.op('@@')(search_query),
+            )
+        )
+
+        users = []
+        for user, membership, role in result.all():
+            users.append({
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": role.name,
+                "is_active": membership.is_active,
+            })
+
+        return users

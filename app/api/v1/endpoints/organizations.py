@@ -67,3 +67,16 @@ async def get_organization_users(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/organizations/{org_id}/users/search")
+async def search_users(
+    org_id: uuid.UUID,
+    q: str = Query(min_length=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    membership: Membership = Depends(require_admin),
+):
+    service = OrganizationService(db)
+    users = await service.search_users(org_id, q)
+    return {"users": [UserInOrg(**u) for u in users]}
