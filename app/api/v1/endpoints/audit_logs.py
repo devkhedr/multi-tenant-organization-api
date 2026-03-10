@@ -62,17 +62,32 @@ async def ask_chatbot(
             detail="Chatbot is not configured. Please set GEMINI_API_KEY."
         )
 
-    try:
-        if data.stream:
-            async def generate():
-                async for chunk in service.ask_stream(org_id, data.question):
-                    yield chunk
-
-            return StreamingResponse(generate(), media_type="text/plain")
-        else:
+    if not data.stream:
+        try:
             answer = await service.ask(org_id, data.question)
             return ChatbotResponse(answer=answer)
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except RuntimeError as e:
+        except ValueError as e:
+            raise HTTPException(status_code=503, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    stream_gen = service.ask_stream(org_id, data.question)
+    try:
+        first_chunk = await stream_gen.__anext__()
+        has_first = True
+    except StopAsyncIteration:
+        first_chunk = None
+        has_first = False
+    except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    async def generate():
+        if has_first and first_chunk is not None:
+            yield first_chunk
+        try:
+            async for chunk in stream_gen:
+                yield chunk
+        except RuntimeError as e:
+            yield f"[Error: {str(e)}]"
+
+    return StreamingResponse(generate(), media_type="text/plain")
