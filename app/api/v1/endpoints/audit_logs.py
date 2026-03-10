@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,12 +55,24 @@ async def ask_chatbot(
 ):
     service = ChatbotService(db)
 
-    if data.stream:
-        async def generate():
-            async for chunk in service.ask_stream(org_id, data.question):
-                yield chunk
+    # Check if chatbot is configured before starting
+    if not service.client:
+        raise HTTPException(
+            status_code=503,
+            detail="Chatbot is not configured. Please set GEMINI_API_KEY."
+        )
 
-        return StreamingResponse(generate(), media_type="text/plain")
-    else:
-        answer = await service.ask(org_id, data.question)
-        return ChatbotResponse(answer=answer)
+    try:
+        if data.stream:
+            async def generate():
+                async for chunk in service.ask_stream(org_id, data.question):
+                    yield chunk
+
+            return StreamingResponse(generate(), media_type="text/plain")
+        else:
+            answer = await service.ask(org_id, data.question)
+            return ChatbotResponse(answer=answer)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))

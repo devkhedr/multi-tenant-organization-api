@@ -63,30 +63,35 @@ Answer in plain text only. No markdown, no bullets, no special formatting."""
 
     async def ask(self, org_id: uuid.UUID, question: str) -> str:
         if not self.client:
-            return "Chatbot is not configured. Please set GEMINI_API_KEY."
+            raise ValueError("Chatbot is not configured. Please set GEMINI_API_KEY.")
 
         logs = await self.get_today_logs(org_id)
         prompt = self.build_prompt(question, logs)
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-        )
-        return response.text
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e:
+            raise RuntimeError(f"Failed to get response from AI: {str(e)}")
 
     async def ask_stream(
         self, org_id: uuid.UUID, question: str
     ) -> AsyncGenerator[str, None]:
         if not self.client:
-            yield "Chatbot is not configured. Please set GEMINI_API_KEY."
-            return
+            raise ValueError("Chatbot is not configured. Please set GEMINI_API_KEY.")
 
         logs = await self.get_today_logs(org_id)
         prompt = self.build_prompt(question, logs)
 
-        for chunk in self.client.models.generate_content_stream(
-            model=self.model_name,
-            contents=prompt,
-        ):
-            if chunk.text:
-                yield chunk.text
+        try:
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model_name,
+                contents=prompt,
+            ):
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            raise RuntimeError(f"Failed to stream response from AI: {str(e)}")
