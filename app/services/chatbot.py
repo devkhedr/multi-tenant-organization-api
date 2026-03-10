@@ -73,6 +73,8 @@ Answer in plain text only. No markdown, no bullets, no special formatting."""
                 model=self.model_name,
                 contents=prompt,
             )
+            if not response.text:
+                return "No response generated from AI."
             return response.text
         except Exception as e:
             raise RuntimeError(f"Failed to get response from AI: {str(e)}")
